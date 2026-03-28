@@ -1,0 +1,6 @@
+numpy
+sentence-transformers
+openai
+python-dotenv
+PyPDF2
+python-telegram-bot

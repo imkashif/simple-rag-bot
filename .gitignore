@@ -1,0 +1,35 @@
+# =========================
+# 1. Security & Secrets (CRITICAL)
+# =========================
+.env
+*.pem
+
+# =========================
+# 2. Local Databases & Knowledge
+# =========================
+# Ignore the generated SQLite database
+knowledge.db
+*.sqlite3
+
+# Ignore your private documents (Optional but recommended)
+# If you want to share your PDFs on GitHub, remove this line!
+knowledge_base/
+
+# =========================
+# 3. Python Environment & Cache
+# =========================
+# Virtual environments
+venv-2/
+env/
+.venv-2/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# =========================
+# 4. OS Specific Junk Files
+# =========================
+.DS_Store
+Thumbs.db
