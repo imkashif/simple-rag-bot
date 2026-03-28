@@ -1,6 +1,6 @@
 # 🤖 Lightweight Mini-RAG Bot
 
-A fast, fully local Retrieval-Augmented Generation (RAG) engine built from scratch. This project allows users to chat with their personal `.txt` and `.pdf` documents using either an interactive terminal console or a Telegram Bot interface.
+A fast, fully local Retrieval-Augmented Generation (RAG) engine built from scratch. This project allows users to chat with their personal `.txt` and `.pdf` documents using either an interactive terminal console.
 
 Unlike heavy frameworks (like LangChain or LlamaIndex) or expensive cloud vector databases (like Pinecone), this project uses a highly optimized, custom-built SQLite + Numpy vector search pipeline to keep the application lightweight, blazing fast, and free to host.
 
