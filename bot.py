@@ -95,70 +95,86 @@ def populate_db(conn):
     conn.commit()
     print("Database populated successfully!\n")
 
-# Actually run the setup functions
-db_conn = setup_db()
-populate_db(db_conn)
 
-
-def retrieve_top_k(conn, query, k=2):
-    # 1. Turn the user's question into numbers
-    query_emb = embedder.encode(query)
+def load_vectors_into_memory(conn):
+    """Loads vectors into RAM once for instant math operations."""
+    global cached_texts, cached_embeddings
     
-    # 2. Grab all the saved documents from the database
     c = conn.cursor()
     c.execute("SELECT text, embedding FROM chunks")
     rows = c.fetchall()
     
-    scored_chunks = []
-    for row in rows:
-        text, emb_str = row
-        doc_emb = np.array(json.loads(emb_str))
+    if not rows:
+        print("Database is empty. No vectors loaded into memory.")
+        return
         
-        # 3. The Math: Compare the question's numbers to the document's numbers
-        similarity = np.dot(query_emb, doc_emb) / (np.linalg.norm(query_emb) * np.linalg.norm(doc_emb))
-        scored_chunks.append((similarity, text))
+    cached_texts = [row[0] for row in rows]
+    # Convert string JSONs directly into a high-speed Numpy matrix
+    cached_embeddings = np.array([json.loads(row[1]) for row in rows])
+    print(f"Loaded {len(cached_texts)} vectors into memory for fast searching.")
+
+def retrieve_top_k(query, k=2):
+    """Instantaneous Vector Search using RAM instead of SQLite."""
+    # If DB is empty or not loaded, return empty
+    if cached_embeddings is None or len(cached_texts) == 0:
+        return []
         
-    # 4. Sort the results so the highest scores are at the top, and return the top 'k'
-    scored_chunks.sort(key=lambda x: x[0], reverse=True)
-    return scored_chunks[:k]
+    # 1. Embed the query
+    query_emb = embedder.encode(query)
+    
+    # 2. Vectorized Numpy Math (Instantly compares against all documents)
+    dot_products = np.dot(cached_embeddings, query_emb)
+    norms = np.linalg.norm(cached_embeddings, axis=1) * np.linalg.norm(query_emb)
+    similarities = dot_products / norms
+    
+    # 3. Get the indices of the top K highest scores
+    top_k_indices = np.argsort(similarities)[::-1][:k]
+    
+    # 4. Retrieve the actual text and scores using those indices
+    scored_chunks = [(similarities[i], cached_texts[i]) for i in top_k_indices]
+    
+    return scored_chunks
+
 
 #Initialize database connection for use in handlers
-db_conn = setup_db()
-populate_db(db_conn)
 
-print("===================================================================")
-print("Bot is ready to receive commands.")
-print("===================================================================")
+if __name__ == '__main__':
+    db_conn = setup_db()
+    populate_db(db_conn)
+    load_vectors_into_memory(db_conn)
+    print("===================================================================")
+    print("Bot is ready to receive commands.")
+    print("===================================================================")
 
-while True:
-    user_input = input("Enter a question (or 'exit' to quit): ")
-    if user_input.lower() == 'exit':
-        print("Exiting...")
-        break
-    top_chunks = retrieve_top_k(db_conn, user_input, k=2)
-    print("\nTop relevant chunks:")
+    while True:
+        user_input = input("Enter a question (or 'exit' to quit): ")
+        if user_input.lower() == 'exit':
+            print("Exiting...")
+            break
+        top_chunks = retrieve_top_k(db_conn, user_input, k=2)
+        print("\nTop relevant chunks:")
 
-    for score, chunk in top_chunks:
-        print(f"Score: {score:.4f} - Text: {chunk[:100]}...")  # Print first 100 chars of chunk
-    print("\n")
+        for score, chunk in top_chunks:
+            print(f"Score: {score:.4f} - Text: {chunk[:100]}...")  # Print first 100 chars of chunk
+        print("\n")
 
-    if not top_chunks:
-        print("No relevant information found in the database.")
-        continue
+        if not top_chunks:
+            print("No relevant information found in the database.")
+            continue
 
-    # Prepare the prompt for OpenAI
-    prompt = f"Answer the question based on the following information:\n\n"
-    for score, chunk in top_chunks:
-        prompt += f"{chunk}\n\n"
-    prompt += f"Question: {user_input}\nAnswer:"
-    # Call OpenAI to get the answer
-    response = openai_client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=[{"role": "system", "content": "You are a helpful assistant."},
-                  {"role": "user", "content": prompt}]
-    )
-    print("OpenAI Response:")
-    print(response.choices[0].message.content.strip())
+        # Prepare the prompt for OpenAI
+        prompt = f"Answer the question based on the following information:\n\n"
+        for score, chunk in top_chunks:
+            prompt += f"{chunk}\n\n"
+        prompt += f"Question: {user_input}\nAnswer:"
+        # Call OpenAI to get the answer
+        response = openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[{"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": prompt}]
+        )
+        print("OpenAI Response:")
+        print(response.choices[0].message.content.strip())
 
     
 
